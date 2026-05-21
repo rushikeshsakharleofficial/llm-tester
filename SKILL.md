@@ -235,6 +235,15 @@ Use this priority order:
 4. Minimal smoke test or dry run.
 5. Manual verification instructions.
 
+## Bundled helpers
+
+Use bundled resources only when they help the current task:
+
+- `resources/testing-matrix.md`: consult for category-to-verification mapping.
+- `resources/safety-checklist.md`: consult before running commands with possible side effects.
+- `resources/verification-report-template.md`: use when a task changed files and needs a structured final report.
+- `scripts/detect_test_commands.py`: run against the target project root to infer likely safe verification commands, then review the output before execution.
+
 ## Safety policy
 
 Allowed by default:

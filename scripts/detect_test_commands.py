@@ -28,6 +28,11 @@ def read_json(path: pathlib.Path) -> dict[str, Any]:
         return {}
 
 
+def contains_any(paths: list[pathlib.Path], needles: list[str]) -> bool:
+    combined = "\n".join(read_text(path).lower() for path in paths if path.exists())
+    return any(needle in combined for needle in needles)
+
+
 def add(commands: list[dict[str, str]], command: str, reason: str, source: str) -> None:
     if command and command not in {item["command"] for item in commands}:
         commands.append({"command": command, "reason": reason, "source": source})
@@ -63,13 +68,33 @@ def detect_js(root: pathlib.Path, commands: list[dict[str, str]]) -> None:
 
 
 def detect_python(root: pathlib.Path, commands: list[dict[str, str]]) -> None:
-    py_files = list(root.glob("*.py")) + list(root.glob("src/**/*.py"))[:5]
+    py_files = (
+        list(root.glob("*.py"))
+        + list(root.glob("src/**/*.py"))[:5]
+        + list(root.glob("scripts/**/*.py"))[:5]
+        + list(root.glob("tests/**/*.py"))[:5]
+    )
     has_py = bool(py_files or (root / "pyproject.toml").exists() or (root / "requirements.txt").exists())
     if not has_py:
         return
     add(commands, "python -m compileall .", "Python syntax check", "heuristic")
     if any((root / d).exists() for d in ["tests", "test"]):
-        add(commands, "pytest", "Python tests directory detected", "heuristic")
+        dependency_files = [
+            root / "pyproject.toml",
+            root / "requirements.txt",
+            root / "requirements-dev.txt",
+            root / "setup.cfg",
+            root / "tox.ini",
+        ]
+        if contains_any(dependency_files, ["pytest"]):
+            add(commands, "pytest", "pytest configuration or dependency detected", "heuristic")
+        else:
+            add(
+                commands,
+                "python -m unittest discover",
+                "Python tests directory detected; no pytest dependency found",
+                "heuristic",
+            )
     text = read_text(root / "pyproject.toml")
     if "ruff" in text:
         add(commands, "ruff check .", "ruff configuration detected", "pyproject.toml")
@@ -121,6 +146,11 @@ def detect_make(root: pathlib.Path, commands: list[dict[str, str]]) -> None:
             add(commands, f"make {preferred}", f"Makefile target: {preferred}", "Makefile")
 
 
+def detect_skill(root: pathlib.Path, commands: list[dict[str, str]]) -> None:
+    if (root / "SKILL.md").exists() and (root / "scripts" / "validate_skill.py").exists():
+        add(commands, "python3 scripts/validate_skill.py .", "Codex skill metadata validation", "SKILL.md")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Detect likely repository test commands")
     parser.add_argument("root", nargs="?", default=".")
@@ -135,6 +165,7 @@ def main() -> int:
     detect_rust(root, commands)
     detect_shell(root, commands)
     detect_iac(root, commands)
+    detect_skill(root, commands)
 
     print(json.dumps({"root": str(root), "commands": commands}, indent=2))
     return 0

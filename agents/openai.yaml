@@ -1,0 +1,4 @@
+interface:
+  display_name: "LLM Tester"
+  short_description: "Require proof for generated changes"
+  default_prompt: "Use $llm-tester to verify every generated change before finalizing."
